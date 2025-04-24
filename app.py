@@ -108,7 +108,8 @@ def extract_text_from_url(url):
         return "Failed to retrieve URL content."
 
 # Page configuration
-st.set_page_config(page_title="Improved TF-IDF Summarizer", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Text Summarizer", layout="wide", initial_sidebar_state="expanded")
+
 
 # Dark mode styling
 st.markdown("""
@@ -141,7 +142,7 @@ input_option = st.sidebar.radio("Choose input type:", ["Manual Text", "Upload PD
 compression_percent = st.sidebar.slider("Summary Compression (%)", min_value=10, max_value=100, value=80)
 entity_boost = st.sidebar.checkbox("Boost Named Entity Sentences", value=True)
 
-st.title("🧠 Improved TF-IDF Text Summarizer")
+st.title("Text Summarizer")
 st.markdown("Summarize content from **text**, **PDFs**, **.txt files**, or **URLs** using enhanced TF-IDF scoring.")
 
 # Input handling

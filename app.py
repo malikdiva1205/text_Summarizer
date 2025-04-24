@@ -116,7 +116,7 @@ def extract_text_from_url(url):
         return "Failed to retrieve URL content."
 
 # ---------- Streamlit UI ----------
-st.set_page_config(page_title="🧠 Smart TF-IDF Summarizer", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Text Summarizer", layout="wide", initial_sidebar_state="expanded")
 
 # Background styling
 st.markdown("""
@@ -131,7 +131,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🧠 Smart TF-IDF Summarizer")
+st.title("Text Summarizer")
 st.markdown("Automatically summarize content from **Text**, **PDF**, **.txt files**, or **URLs** with intelligent compression and entity-awareness.")
 
 with st.sidebar:

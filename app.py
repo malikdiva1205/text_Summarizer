@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 import requests
 import io
 
+# Setup
 try:
     nlp = spacy.load('en_core_web_sm')
 except:
@@ -15,17 +16,12 @@ except:
     os.system("python -m spacy download en_core_web_sm")
     nlp = spacy.load('en_core_web_sm')
 
-
-# Download required resources
 nltk.download('wordnet')
 nltk.download('punkt')
 
-# Load NLP models
-nlp = spacy.load('en_core_web_sm')
 lemmatizer = WordNetLemmatizer()
 
-# ------------ Utility Functions ------------
-
+# Utility functions
 def clean_and_lemmatize(doc):
     stop_words = nlp.Defaults.stop_words
     return [token.lemma_.lower() for token in doc if token.is_alpha and token.lemma_.lower() not in stop_words]
@@ -94,8 +90,7 @@ def create_summary(sentences, sentence_score, compression_percent, entity_boost=
     summary = " ".join([s.text for s in sentences if s[:15] in dict(final_sentences)])
     return summary
 
-# ------------ Input Handling ------------
-
+# Text Extraction
 def extract_text_from_pdf(uploaded_file):
     reader = PyPDF2.PdfReader(uploaded_file)
     text = ''
@@ -112,41 +107,66 @@ def extract_text_from_url(url):
     except:
         return "Failed to retrieve URL content."
 
-# ------------ Streamlit UI ------------
+# Page configuration
+st.set_page_config(page_title="Improved TF-IDF Summarizer", layout="wide", initial_sidebar_state="expanded")
 
-st.set_page_config(page_title="Improved TF-IDF Text Summarizer", layout="wide")
-st.title("📄 Improved TF-IDF Text Summarizer")
-st.markdown("Summarize articles from **text**, **PDF**, **.txt files**, or **URLs** using TF-IDF with enhancements.")
+# Dark mode styling
+st.markdown("""
+    <style>
+    body, .stApp {
+        background-color: #121212;
+        color: #EEEEEE;
+    }
+    .css-1v3fvcr {
+        color: white;
+    }
+    .stTextArea textarea {
+        background-color: #1e1e1e;
+        color: white;
+    }
+    .stTextInput input {
+        background-color: #1e1e1e;
+        color: white;
+    }
+    .stFileUploader {
+        color: white;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-input_option = st.radio("Choose input type:", ["Manual Text", "Upload PDF", "Upload .txt File", "Enter URL"])
+# Sidebar options
+st.sidebar.title("🧾 Input Options")
+input_option = st.sidebar.radio("Choose input type:", ["Manual Text", "Upload PDF", "Upload .txt File", "Enter URL"])
+
+compression_percent = st.sidebar.slider("Summary Compression (%)", min_value=10, max_value=100, value=80)
+entity_boost = st.sidebar.checkbox("Boost Named Entity Sentences", value=True)
+
+st.title("🧠 Improved TF-IDF Text Summarizer")
+st.markdown("Summarize content from **text**, **PDFs**, **.txt files**, or **URLs** using enhanced TF-IDF scoring.")
+
+# Input handling
 input_text = ""
 
 if input_option == "Manual Text":
-    input_text = st.text_area("Enter your text here:", height=250)
+    input_text = st.text_area("✍️ Enter your text below:", height=250)
 
 elif input_option == "Upload PDF":
-    uploaded_file = st.file_uploader("Upload a PDF file", type=["pdf"])
+    uploaded_file = st.file_uploader("📄 Upload a PDF file", type=["pdf"])
     if uploaded_file:
         input_text = extract_text_from_pdf(uploaded_file)
 
 elif input_option == "Upload .txt File":
-    uploaded_file = st.file_uploader("Upload a text file", type=["txt"])
+    uploaded_file = st.file_uploader("📜 Upload a text file", type=["txt"])
     if uploaded_file:
         input_text = uploaded_file.read().decode('utf-8')
 
 elif input_option == "Enter URL":
-    url = st.text_input("Paste URL here:")
+    url = st.text_input("🌐 Enter a URL to summarize:")
     if url:
         input_text = extract_text_from_url(url)
 
-# Compression and options
-compression_percent = 80
-
-entity_boost = st.checkbox("⚡ Boost sentences with named entities", value=True)
-
-# ------------ Run Summarizer ------------
-
-if st.button("🔍 Generate Summary") and input_text:
+# Summarizer execution
+if st.button("🚀 Generate Summary") and input_text:
     doc = nlp(input_text)
     sentences = list(doc.sents)
     total_sentences = len(sentences)
@@ -159,17 +179,17 @@ if st.button("🔍 Generate Summary") and input_text:
     sentence_scores = score_sentences(tf_idf_mat)
 
     summary = create_summary(sentences, sentence_scores, compression_percent, entity_boost)
-    
-    st.markdown("### 📝 Summary:")
+
+    st.subheader("📝 Summary:")
     st.success(summary)
 
-    st.markdown("### 📊 Word Count Comparison:")
+    st.subheader("📊 Word Count Comparison:")
     original_word_count = len(input_text.split())
     summary_word_count = len(summary.split())
-    st.write(f"**Original Text:** {original_word_count} words")
-    st.write(f"**Summary:** {summary_word_count} words")
+    st.markdown(f"- **Original Text:** {original_word_count} words")
+    st.markdown(f"- **Summary:** {summary_word_count} words")
 
     st.download_button("📥 Download Summary", summary, file_name="summary.txt", mime="text/plain")
 
 elif input_option != "Manual Text":
-    st.info("Please upload a file or enter a valid URL to generate the summary.")
+    st.info("Upload a file or enter a valid URL to generate a summary.")

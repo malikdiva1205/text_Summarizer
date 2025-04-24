@@ -115,7 +115,7 @@ st.set_page_config(page_title="Text Summarizer", layout="wide", initial_sidebar_
 st.markdown("""
     <style>
     body, .stApp {
-        background-color: #121212;
+        background-color: #000000;
         color: #EEEEEE;
     }
     .css-1v3fvcr {

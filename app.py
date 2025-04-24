@@ -6,9 +6,8 @@ import nltk
 import PyPDF2
 from bs4 import BeautifulSoup
 import requests
-import io
 
-# Setup
+# NLP setup
 try:
     nlp = spacy.load('en_core_web_sm')
 except:
@@ -21,7 +20,7 @@ nltk.download('punkt')
 
 lemmatizer = WordNetLemmatizer()
 
-# Utility functions
+# ---------- Utility Functions ----------
 def clean_and_lemmatize(doc):
     stop_words = nlp.Defaults.stop_words
     return [token.lemma_.lower() for token in doc if token.is_alpha and token.lemma_.lower() not in stop_words]
@@ -76,6 +75,18 @@ def score_sentences(tf_idf_matrix):
 def named_entity_score(sentence):
     return len([ent for ent in sentence.ents if ent.label_ in ["PERSON", "ORG", "GPE", "DATE"]])
 
+def auto_compression_percent(text_len):
+    if text_len < 100:
+        return 90
+    elif text_len < 500:
+        return 80
+    elif text_len < 1500:
+        return 70
+    elif text_len < 3000:
+        return 60
+    else:
+        return 50
+
 def create_summary(sentences, sentence_score, compression_percent, entity_boost=False):
     sorted_scores = sorted(sentence_score.items(), key=lambda x: x[1], reverse=True)
     top_count = max(1, math.ceil(len(sorted_scores) * (compression_percent / 100)))
@@ -90,13 +101,10 @@ def create_summary(sentences, sentence_score, compression_percent, entity_boost=
     summary = " ".join([s.text for s in sentences if s[:15] in dict(final_sentences)])
     return summary
 
-# Text Extraction
+# ---------- Input Handlers ----------
 def extract_text_from_pdf(uploaded_file):
     reader = PyPDF2.PdfReader(uploaded_file)
-    text = ''
-    for page in reader.pages:
-        text += page.extract_text()
-    return text
+    return "".join(page.extract_text() for page in reader.pages if page.extract_text())
 
 def extract_text_from_url(url):
     try:
@@ -107,71 +115,58 @@ def extract_text_from_url(url):
     except:
         return "Failed to retrieve URL content."
 
-# Page configuration
-st.set_page_config(page_title="Text Summarizer", layout="wide", initial_sidebar_state="expanded")
+# ---------- Streamlit UI ----------
+st.set_page_config(page_title="🧠 Smart TF-IDF Summarizer", layout="wide", initial_sidebar_state="expanded")
 
-
-# Dark mode styling
+# Background styling
 st.markdown("""
     <style>
-    body, .stApp {
-        background-color: #000000;
-        color: #EEEEEE;
-    }
-    .css-1v3fvcr {
-        color: white;
-    }
-    .stTextArea textarea {
-        background-color: #1e1e1e;
-        color: white;
-    }
-    .stTextInput input {
-        background-color: #1e1e1e;
-        color: white;
-    }
-    .stFileUploader {
-        color: white;
-    }
+        body {
+            background-color: #111;
+            color: #eee;
+        }
+        .stApp {
+            background-color: #111;
+        }
     </style>
 """, unsafe_allow_html=True)
 
-# Sidebar options
-st.sidebar.title("🧾 Input Options")
-input_option = st.sidebar.radio("Choose input type:", ["Manual Text", "Upload PDF", "Upload .txt File", "Enter URL"])
+st.title("🧠 Smart TF-IDF Summarizer")
+st.markdown("Automatically summarize content from **Text**, **PDF**, **.txt files**, or **URLs** with intelligent compression and entity-awareness.")
 
-compression_percent = st.sidebar.slider("Summary Compression (%)", min_value=10, max_value=100, value=80)
-entity_boost = st.sidebar.checkbox("Boost Named Entity Sentences", value=True)
+with st.sidebar:
+    st.header("📥 Input Options")
+    input_option = st.radio("Choose input type:", ["Manual Text", "Upload PDF", "Upload .txt File", "Enter URL"])
+    entity_boost = st.checkbox("⚡ Boost with named entities", value=True)
 
-st.title("Text Summarizer")
-st.markdown("Summarize content from **text**, **PDFs**, **.txt files**, or **URLs** using enhanced TF-IDF scoring.")
-
-# Input handling
 input_text = ""
 
 if input_option == "Manual Text":
-    input_text = st.text_area("✍️ Enter your text below:", height=250)
+    input_text = st.text_area("Enter your text here:", height=250)
 
 elif input_option == "Upload PDF":
-    uploaded_file = st.file_uploader("📄 Upload a PDF file", type=["pdf"])
+    uploaded_file = st.file_uploader("Upload a PDF file", type=["pdf"])
     if uploaded_file:
         input_text = extract_text_from_pdf(uploaded_file)
 
 elif input_option == "Upload .txt File":
-    uploaded_file = st.file_uploader("📜 Upload a text file", type=["txt"])
+    uploaded_file = st.file_uploader("Upload a .txt file", type=["txt"])
     if uploaded_file:
         input_text = uploaded_file.read().decode('utf-8')
 
 elif input_option == "Enter URL":
-    url = st.text_input("🌐 Enter a URL to summarize:")
+    url = st.text_input("Paste the URL here:")
     if url:
         input_text = extract_text_from_url(url)
 
-# Summarizer execution
-if st.button("🚀 Generate Summary") and input_text:
+# Run the summarizer
+if st.button("🔍 Generate Summary") and input_text.strip():
     doc = nlp(input_text)
     sentences = list(doc.sents)
     total_sentences = len(sentences)
 
+    compression_percent = auto_compression_percent(len(input_text.split()))
+    
     freq_matrix = frequency_matrix(sentences)
     tf_mat = tf_matrix(freq_matrix)
     sent_per_word = sentences_per_words(freq_matrix)
@@ -181,16 +176,13 @@ if st.button("🚀 Generate Summary") and input_text:
 
     summary = create_summary(sentences, sentence_scores, compression_percent, entity_boost)
 
-    st.subheader("📝 Summary:")
+    st.markdown("### 📝 Summary:")
     st.success(summary)
 
-    st.subheader("📊 Word Count Comparison:")
-    original_word_count = len(input_text.split())
-    summary_word_count = len(summary.split())
-    st.markdown(f"- **Original Text:** {original_word_count} words")
-    st.markdown(f"- **Summary:** {summary_word_count} words")
+    st.markdown("### 📊 Word Count Comparison:")
+    st.write(f"**Original Text:** {len(input_text.split())} words")
+    st.write(f"**Summary:** {len(summary.split())} words")
 
     st.download_button("📥 Download Summary", summary, file_name="summary.txt", mime="text/plain")
-
 elif input_option != "Manual Text":
-    st.info("Upload a file or enter a valid URL to generate a summary.")
+    st.info("Please upload a file or enter a valid URL to generate the summary.")

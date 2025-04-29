@@ -6,9 +6,8 @@ import nltk
 import PyPDF2
 from bs4 import BeautifulSoup
 import requests
-import io
 
-# Load spaCy model
+# NLP setup
 try:
     nlp = spacy.load('en_core_web_sm')
 except:
@@ -16,29 +15,10 @@ except:
     os.system("python -m spacy download en_core_web_sm")
     nlp = spacy.load('en_core_web_sm')
 
-# Download required resources
 nltk.download('wordnet')
 nltk.download('punkt')
 
 lemmatizer = WordNetLemmatizer()
-
-# ---------- Streamlit Config ----------
-st.set_page_config(page_title="Improved TF-IDF Text Summarizer", layout="wide")
-
-# Custom CSS for white sidebar radio text
-st.markdown(
-    """
-    <style>
-        .sidebar .stRadio > div > label {
-            color: white !important;
-        }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-st.title("📄 Improved TF-IDF Text Summarizer")
-st.markdown("Summarize articles from **text**, **PDF**, **.txt files**, or **URLs** using TF-IDF with enhancements.")
 
 # ---------- Utility Functions ----------
 def clean_and_lemmatize(doc):
@@ -95,6 +75,18 @@ def score_sentences(tf_idf_matrix):
 def named_entity_score(sentence):
     return len([ent for ent in sentence.ents if ent.label_ in ["PERSON", "ORG", "GPE", "DATE"]])
 
+def auto_compression_percent(text_len):
+    if text_len < 100:
+        return 90
+    elif text_len < 500:
+        return 80
+    elif text_len < 1500:
+        return 70
+    elif text_len < 3000:
+        return 60
+    else:
+        return 50
+
 def create_summary(sentences, sentence_score, compression_percent, entity_boost=False):
     sorted_scores = sorted(sentence_score.items(), key=lambda x: x[1], reverse=True)
     top_count = max(1, math.ceil(len(sorted_scores) * (compression_percent / 100)))
@@ -112,10 +104,7 @@ def create_summary(sentences, sentence_score, compression_percent, entity_boost=
 # ---------- Input Handlers ----------
 def extract_text_from_pdf(uploaded_file):
     reader = PyPDF2.PdfReader(uploaded_file)
-    text = ''
-    for page in reader.pages:
-        text += page.extract_text()
-    return text
+    return "".join(page.extract_text() for page in reader.pages if page.extract_text())
 
 def extract_text_from_url(url):
     try:
@@ -126,48 +115,58 @@ def extract_text_from_url(url):
     except:
         return "Failed to retrieve URL content."
 
-# ---------- Sidebar Input ----------
-st.sidebar.header("📥 Input Options")
-input_option = st.sidebar.radio("Choose input type:", ["Manual Text", "Upload PDF", "Upload .txt File", "Enter URL"])
+# ---------- Streamlit UI ----------
+st.set_page_config(page_title="Text Summarizer", layout="wide", initial_sidebar_state="expanded")
+
+# Background styling
+st.markdown("""
+    <style>
+        body {
+            background-color: #111;
+            color: #eee;
+        }
+        .stApp {
+            background-color: #111;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+st.title("Text Summarizer")
+st.markdown("Automatically summarize content from **Text**, **PDF**, **.txt files**, or **URLs** with intelligent compression and entity-awareness.")
+
+with st.sidebar:
+    st.header("📥 Input Options")
+    input_option = st.radio("Choose input type:", ["Manual Text", "Upload PDF", "Upload .txt File", "Enter URL"])
+    entity_boost = st.checkbox("⚡ Boost with named entities", value=True)
+
 input_text = ""
 
 if input_option == "Manual Text":
     input_text = st.text_area("Enter your text here:", height=250)
 
 elif input_option == "Upload PDF":
-    uploaded_file = st.sidebar.file_uploader("Upload a PDF file", type=["pdf"])
+    uploaded_file = st.file_uploader("Upload a PDF file", type=["pdf"])
     if uploaded_file:
         input_text = extract_text_from_pdf(uploaded_file)
 
 elif input_option == "Upload .txt File":
-    uploaded_file = st.sidebar.file_uploader("Upload a text file", type=["txt"])
+    uploaded_file = st.file_uploader("Upload a .txt file", type=["txt"])
     if uploaded_file:
         input_text = uploaded_file.read().decode('utf-8')
 
 elif input_option == "Enter URL":
-    url = st.sidebar.text_input("Paste URL here:")
+    url = st.text_input("Paste the URL here:")
     if url:
         input_text = extract_text_from_url(url)
 
-# ---------- Options ----------
-entity_boost = st.sidebar.checkbox("⚡ Boost sentences with named entities", value=True)
-
-# ---------- Run Summarizer ----------
-if st.button("🔍 Generate Summary") and input_text:
+# Run the summarizer
+if st.button("🔍 Generate Summary") and input_text.strip():
     doc = nlp(input_text)
     sentences = list(doc.sents)
     total_sentences = len(sentences)
 
-    # Automatically determine compression percent
-    if total_sentences < 5:
-        compression_percent = 90
-    elif total_sentences < 15:
-        compression_percent = 60
-    elif total_sentences < 30:
-        compression_percent = 40
-    else:
-        compression_percent = 25
-
+    compression_percent = auto_compression_percent(len(input_text.split()))
+    
     freq_matrix = frequency_matrix(sentences)
     tf_mat = tf_matrix(freq_matrix)
     sent_per_word = sentences_per_words(freq_matrix)
@@ -181,12 +180,9 @@ if st.button("🔍 Generate Summary") and input_text:
     st.success(summary)
 
     st.markdown("### 📊 Word Count Comparison:")
-    original_word_count = len(input_text.split())
-    summary_word_count = len(summary.split())
-    st.write(f"**Original Text:** {original_word_count} words")
-    st.write(f"**Summary:** {summary_word_count} words")
+    st.write(f"**Original Text:** {len(input_text.split())} words")
+    st.write(f"**Summary:** {len(summary.split())} words")
 
     st.download_button("📥 Download Summary", summary, file_name="summary.txt", mime="text/plain")
-
 elif input_option != "Manual Text":
     st.info("Please upload a file or enter a valid URL to generate the summary.")
